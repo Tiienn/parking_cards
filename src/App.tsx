@@ -83,7 +83,7 @@ const cardsPerPage = 6
 const defaultStartNumber = 101
 const alexanderHouseStartNumber = 59
 const alexanderHouseEndNumber = 139
-const alexanderHouseSpecialNumber = 'AH81A'
+const alexanderHouseSpecialNumber = '81A'
 const alexanderHouseZoneNumber = 'Zone B'
 const databaseStorageKey = 'parking-card-database-v1'
 const jphResetStorageKey = 'parking-card-jph-reset-v1'
@@ -130,7 +130,10 @@ function alexanderHouseSequenceIndex(cardNumber: string) {
     return alexanderHousePrimaryCount()
   }
 
-  if (normalizedValue === alexanderHouseSpecialNumber) {
+  if (
+    normalizedValue === alexanderHouseSpecialNumber ||
+    normalizedValue === `AH${alexanderHouseSpecialNumber}`
+  ) {
     return 81 - alexanderHouseStartNumber + 1
   }
 
@@ -157,13 +160,13 @@ function alexanderHouseSequenceIndex(cardNumber: string) {
 
 function alexanderHouseCardNumberAtIndex(index: number) {
   if (index < 0) {
-    return `AH${alexanderHouseStartNumber}`
+    return String(alexanderHouseStartNumber)
   }
 
   const specialIndex = 81 - alexanderHouseStartNumber + 1
 
   if (index < specialIndex) {
-    return `AH${alexanderHouseStartNumber + index}`
+    return String(alexanderHouseStartNumber + index)
   }
 
   if (index === specialIndex) {
@@ -173,7 +176,7 @@ function alexanderHouseCardNumberAtIndex(index: number) {
   const cardNumber = alexanderHouseStartNumber + index - 1
 
   if (cardNumber <= alexanderHouseEndNumber) {
-    return `AH${cardNumber}`
+    return String(cardNumber)
   }
 
   return alexanderHouseZoneNumber
@@ -196,14 +199,17 @@ function normalizeCardNumber(company: CompanyHeader, value: string) {
     return alexanderHouseZoneNumber
   }
 
-  if (compactValue === '81A' || compactValue === alexanderHouseSpecialNumber) {
+  if (
+    compactValue === alexanderHouseSpecialNumber ||
+    compactValue === `AH${alexanderHouseSpecialNumber}`
+  ) {
     return alexanderHouseSpecialNumber
   }
 
   const matchedNumber = compactValue.match(/^AH?(\d+)$/)?.[1]
 
   if (matchedNumber) {
-    return `AH${Number.parseInt(matchedNumber, 10)}`
+    return String(Number.parseInt(matchedNumber, 10))
   }
 
   return trimmedValue
@@ -222,7 +228,7 @@ function cardNumberFromSequence(
   index: number,
 ) {
   if (company === 'Alexander House') {
-    const startIndex = alexanderHouseSequenceIndex(`AH${startNumber}`)
+    const startIndex = alexanderHouseSequenceIndex(String(startNumber))
     return alexanderHouseCardNumberAtIndex(startIndex + index)
   }
 
@@ -263,21 +269,11 @@ function loadDatabase() {
 
     const parsedDatabase = JSON.parse(storedDatabase) as ParkingDatabase
     const cards = Array.isArray(parsedDatabase.cards)
-      ? parsedDatabase.cards
-          .filter((card) => companyHeaders.includes(card.company))
-          .map((card) => {
-            const cardNumber = normalizeCardNumber(card.company, card.cardNumber)
-
-            return {
-              ...card,
-              cardNumber,
-              id: card.id || createId(),
-              pageNumber:
-                card.pageNumber ||
-                pageNumberFromCardNumber(card.company, cardNumber),
-              isDuplicate: Boolean(card.isDuplicate),
-            }
-          })
+      ? dedupeSavedCards(
+          parsedDatabase.cards
+            .filter((card) => companyHeaders.includes(card.company))
+            .map(normalizeSavedCard),
+        )
       : []
 
     if (window.localStorage.getItem(jphResetStorageKey) !== 'done') {
@@ -294,6 +290,19 @@ function loadDatabase() {
     return { cards }
   } catch {
     return emptyDatabase()
+  }
+}
+
+function normalizeSavedCard(card: SavedParkingCard): SavedParkingCard {
+  const cardNumber = normalizeCardNumber(card.company, card.cardNumber)
+
+  return {
+    ...card,
+    cardNumber,
+    id: card.id || createId(),
+    pageNumber:
+      card.pageNumber || pageNumberFromCardNumber(card.company, cardNumber),
+    isDuplicate: Boolean(card.isDuplicate),
   }
 }
 
@@ -514,7 +523,7 @@ function nextAvailableCardNumber(
   fallback: number,
 ) {
   if (company === 'Alexander House') {
-    const fallbackIndex = alexanderHouseSequenceIndex(`AH${fallback}`) - 1
+    const fallbackIndex = alexanderHouseSequenceIndex(String(fallback)) - 1
     const usedIndexes = cards
       .map((card) => cardSortIndex(company, card.cardNumber))
       .filter(Number.isFinite)
@@ -629,10 +638,70 @@ function databaseKey(
   return `${company}:${normalizeSearchValue(normalizedCardNumber)}`
 }
 
+function legacyAlexanderHouseDatabaseKey(
+  company: CompanyHeader,
+  normalizedCardNumber: string,
+) {
+  if (
+    company !== 'Alexander House' ||
+    !normalizedCardNumber ||
+    isAlexanderHouseZoneB(company, normalizedCardNumber)
+  ) {
+    return null
+  }
+
+  if (
+    normalizedCardNumber === alexanderHouseSpecialNumber ||
+    /^\d+$/.test(normalizedCardNumber)
+  ) {
+    return `${company}:${normalizeSearchValue(`AH${normalizedCardNumber}`)}`
+  }
+
+  return null
+}
+
+function databaseKeys(
+  company: CompanyHeader,
+  cardNumber: string,
+  name = '',
+  carNumber = '',
+) {
+  const normalizedCardNumber = normalizeCardNumber(company, cardNumber)
+  const keys = new Set([databaseKey(company, normalizedCardNumber, name, carNumber)])
+  const legacyKey = legacyAlexanderHouseDatabaseKey(company, normalizedCardNumber)
+
+  if (legacyKey) {
+    keys.add(legacyKey)
+  }
+
+  return [...keys]
+}
+
 function databaseKeyForCard(
   card: Pick<SavedParkingCard, 'company' | 'cardNumber' | 'name' | 'carNumber'>,
 ) {
   return databaseKey(card.company, card.cardNumber, card.name, card.carNumber)
+}
+
+function databaseKeysForCard(
+  card: Pick<SavedParkingCard, 'company' | 'cardNumber' | 'name' | 'carNumber'>,
+) {
+  return databaseKeys(card.company, card.cardNumber, card.name, card.carNumber)
+}
+
+function dedupeSavedCards(cards: SavedParkingCard[]) {
+  return Array.from(
+    cards.reduce<Map<string, SavedParkingCard>>((dedupedCards, card) => {
+      const key = databaseKeyForCard(card)
+      const currentCard = dedupedCards.get(key)
+
+      if (!currentCard || card.savedAt >= currentCard.savedAt) {
+        dedupedCards.set(key, card)
+      }
+
+      return dedupedCards
+    }, new Map()),
+  ).map(([, card]) => card)
 }
 
 function createSavedCards(
@@ -674,17 +743,17 @@ function upsertCards(
   const replacementKeys = new Set(
     cardsToReplace
       .filter((card) => card.cardNumber && (card.name || card.carNumber))
-      .map((card) =>
-        databaseKey(company, card.cardNumber, card.name, card.carNumber),
+      .flatMap((card) =>
+        databaseKeys(company, card.cardNumber, card.name, card.carNumber),
       ),
   )
-  const savedKeys = new Set(cardsToSave.map(databaseKeyForCard))
+  const savedKeys = new Set(cardsToSave.flatMap(databaseKeysForCard))
   const keysToReplace = new Set([...replacementKeys, ...savedKeys])
 
   return {
     cards: [
       ...database.cards.filter(
-        (card) => !keysToReplace.has(databaseKeyForCard(card)),
+        (card) => !databaseKeysForCard(card).some((key) => keysToReplace.has(key)),
       ),
       ...cardsToSave,
     ],
@@ -701,17 +770,21 @@ function ConvexParkingCardApp() {
     }
 
     return {
-      cards: remoteCards.map((card) => ({
-        id: card._id,
-        company: card.company,
-        cardNumber: card.cardNumber,
-        name: card.name,
-        carNumber: card.carNumber,
-        expiryDate: card.expiryDate,
-        isDuplicate: card.isDuplicate,
-        pageNumber: card.pageNumber,
-        savedAt: card.savedAt,
-      })),
+      cards: dedupeSavedCards(
+        remoteCards.map((card) =>
+          normalizeSavedCard({
+            id: card._id,
+            company: card.company,
+            cardNumber: card.cardNumber,
+            name: card.name,
+            carNumber: card.carNumber,
+            expiryDate: card.expiryDate,
+            isDuplicate: card.isDuplicate,
+            pageNumber: card.pageNumber,
+            savedAt: card.savedAt,
+          }),
+        ),
+      ),
     }
   }, [remoteCards])
 
@@ -724,10 +797,10 @@ function ConvexParkingCardApp() {
           keysToReplace: [
             ...cardsToReplace
               .filter((card) => card.cardNumber && (card.name || card.carNumber))
-              .map((card) =>
-                databaseKey(company, card.cardNumber, card.name, card.carNumber),
+              .flatMap((card) =>
+                databaseKeys(company, card.cardNumber, card.name, card.carNumber),
               ),
-            ...savedCards.map(databaseKeyForCard),
+            ...savedCards.flatMap(databaseKeysForCard),
           ],
           cards: savedCards.map((card) => ({
             databaseKey: databaseKeyForCard(card),
@@ -743,7 +816,9 @@ function ConvexParkingCardApp() {
         })
       }}
       deleteCard={async (card) => {
-        await deleteCard({ databaseKey: databaseKeyForCard(card) })
+        for (const databaseKey of databaseKeysForCard(card)) {
+          await deleteCard({ databaseKey })
+        }
       }}
     />
   )
@@ -1577,8 +1652,8 @@ function ParkingCardPreview({
         {company === 'Alexander House' ? (
           <MapPin
             className="card-number-location"
-            size={18}
-            strokeWidth={3}
+            size={36}
+            strokeWidth={2.6}
             aria-hidden="true"
           />
         ) : null}

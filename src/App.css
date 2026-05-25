@@ -719,11 +719,11 @@ td .number-input {
 }
 
 .card-number-location {
-  width: 0.34cm;
-  height: 0.34cm;
+  width: 0.82cm;
+  height: 0.82cm;
   color: #111;
   flex: 0 0 auto;
-  margin-bottom: 0.02cm;
+  margin-bottom: -0.03cm;
 }
 
 .card-fields {
