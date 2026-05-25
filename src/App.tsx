@@ -87,6 +87,7 @@ const alexanderHouseSpecialNumber = '81A'
 const alexanderHouseZoneNumber = 'Zone B'
 const databaseStorageKey = 'parking-card-database-v1'
 const jphResetStorageKey = 'parking-card-jph-reset-v1'
+const lastCompanyStorageKey = 'parking-card-last-company-v1'
 
 const nameAliases = ['name', 'names', 'full name', 'fullname', 'driver', 'owner']
 const carAliases = [
@@ -117,6 +118,18 @@ function defaultStartNumberForCompany(company: CompanyHeader) {
   return company === 'Alexander House'
     ? alexanderHouseStartNumber
     : defaultStartNumber
+}
+
+function loadLastSelectedCompany() {
+  if (typeof window === 'undefined') {
+    return 'JPH'
+  }
+
+  const storedCompany = window.localStorage.getItem(lastCompanyStorageKey)
+
+  return companyHeaders.includes(storedCompany as CompanyHeader)
+    ? (storedCompany as CompanyHeader)
+    : 'JPH'
 }
 
 function alexanderHousePrimaryCount() {
@@ -833,11 +846,20 @@ function App() {
 }
 
 function ParkingCardApp(remotePersistence: RemotePersistence = {}) {
-  const [selectedCompany, setSelectedCompany] = useState<CompanyHeader>('JPH')
-  const [startNumber, setStartNumber] = useState(defaultStartNumberForCompany('JPH'))
+  const initialCompany = useMemo(() => loadLastSelectedCompany(), [])
+  const [selectedCompany, setSelectedCompany] =
+    useState<CompanyHeader>(initialCompany)
+  const [startNumber, setStartNumber] = useState(
+    defaultStartNumberForCompany(initialCompany),
+  )
   const [defaultExpiry, setDefaultExpiry] = useState(defaultExpiryDate)
   const [cards, setCards] = useState<ParkingCard[]>(() =>
-    createBlankCards('JPH', defaultStartNumber, cardsPerPage, defaultExpiryDate()),
+    createBlankCards(
+      initialCompany,
+      defaultStartNumberForCompany(initialCompany),
+      cardsPerPage,
+      defaultExpiryDate(),
+    ),
   )
   const [localDatabase, setLocalDatabase] =
     useState<ParkingDatabase>(loadDatabase)
@@ -861,6 +883,10 @@ function ParkingCardApp(remotePersistence: RemotePersistence = {}) {
       )
     }
   }, [localDatabase, remotePersistence.replaceCards])
+
+  useEffect(() => {
+    window.localStorage.setItem(lastCompanyStorageKey, selectedCompany)
+  }, [selectedCompany])
 
   const pages = useMemo(() => chunkCards(cards), [cards])
   const pageCount = Math.max(1, pages.length)

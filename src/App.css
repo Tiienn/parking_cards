@@ -692,7 +692,7 @@ td .number-input {
 
 .card-number {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: flex-end;
   gap: 0.09cm;
   margin: 0.28cm 0 0.24cm;
@@ -723,7 +723,7 @@ td .number-input {
   height: 0.82cm;
   color: #111;
   flex: 0 0 auto;
-  margin-bottom: -0.03cm;
+  transform: translateY(-0.04cm);
 }
 
 .card-fields {
