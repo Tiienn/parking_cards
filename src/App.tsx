@@ -10,6 +10,7 @@ import {
   FileSpreadsheet,
   FolderOpen,
   Hash,
+  MapPin,
   Plus,
   Printer,
   RotateCcw,
@@ -98,23 +99,6 @@ const carAliases = [
   'plate number',
   'registration',
   'registration number',
-]
-const cardNumberAliases = [
-  'card number',
-  'card no',
-  'card no.',
-  'card',
-  'card id',
-  'permit number',
-  'permit no',
-]
-const expiryAliases = [
-  'expiry',
-  'expiry date',
-  'exp date',
-  'exp. date',
-  'expiration date',
-  'valid until',
 ]
 
 function createId() {
@@ -418,60 +402,9 @@ function getColumnIndex(headers: string[], aliases: string[], fallbackIndex: num
 }
 
 function looksLikeHeader(headers: string[]) {
-  const aliases = [
-    ...nameAliases,
-    ...carAliases,
-    ...cardNumberAliases,
-    ...expiryAliases,
-  ].map(normalizeHeader)
+  const aliases = [...nameAliases, ...carAliases].map(normalizeHeader)
 
   return headers.some((header) => aliases.includes(normalizeHeader(header)))
-}
-
-function formatDateInputValue(date: Date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-
-  return `${year}-${month}-${day}`
-}
-
-function dateInputValueFromCell(value: SheetCell) {
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return formatDateInputValue(value)
-  }
-
-  const text = getCellText(value)
-
-  if (!text) {
-    return ''
-  }
-
-  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
-    return text
-  }
-
-  const matchedDate = text.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})$/)
-
-  if (!matchedDate) {
-    return ''
-  }
-
-  const day = Number.parseInt(matchedDate[1], 10)
-  const month = Number.parseInt(matchedDate[2], 10)
-  const rawYear = Number.parseInt(matchedDate[3], 10)
-  const year = rawYear < 100 ? 2000 + rawYear : rawYear
-  const date = new Date(year, month - 1, day)
-
-  if (
-    date.getFullYear() !== year ||
-    date.getMonth() !== month - 1 ||
-    date.getDate() !== day
-  ) {
-    return ''
-  }
-
-  return formatDateInputValue(date)
 }
 
 function cardsFromSheetRows(
@@ -486,27 +419,16 @@ function cardsFromSheetRows(
   const dataRows = hasHeader ? nonEmptyRows.slice(1) : nonEmptyRows
   const nameIndex = getColumnIndex(headers, nameAliases, 0)
   const carIndex = getColumnIndex(headers, carAliases, 1)
-  const cardNumberIndex = findColumnIndex(headers, cardNumberAliases)
-  const expiryIndex = findColumnIndex(headers, expiryAliases)
 
   return dataRows
-    .map((row, index) => {
-      const importedCardNumber =
-        cardNumberIndex >= 0 ? getCellText(row[cardNumberIndex]) : ''
-      const importedExpiry =
-        expiryIndex >= 0 ? dateInputValueFromCell(row[expiryIndex]) : ''
-
-      return {
-        id: createId(),
-        cardNumber: importedCardNumber
-          ? normalizeCardNumber(company, importedCardNumber)
-          : cardNumberFromSequence(company, startNumber, index),
-        name: getCellText(row[nameIndex]),
-        carNumber: getCellText(row[carIndex]),
-        expiryDate: importedExpiry || expiryDate,
-        isDuplicate: false,
-      }
-    })
+    .map((row, index) => ({
+      id: createId(),
+      cardNumber: cardNumberFromSequence(company, startNumber, index),
+      name: getCellText(row[nameIndex]),
+      carNumber: getCellText(row[carIndex]),
+      expiryDate,
+      isDuplicate: false,
+    }))
     .filter((card) => card.name || card.carNumber)
 }
 
@@ -1652,6 +1574,14 @@ function ParkingCardPreview({
       </div>
 
       <div className="card-number">
+        {company === 'Alexander House' ? (
+          <MapPin
+            className="card-number-location"
+            size={18}
+            strokeWidth={3}
+            aria-hidden="true"
+          />
+        ) : null}
         <strong>{card.cardNumber || '000'}</strong>
       </div>
 

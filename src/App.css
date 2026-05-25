@@ -694,6 +694,7 @@ td .number-input {
   display: flex;
   align-items: flex-end;
   justify-content: flex-end;
+  gap: 0.09cm;
   margin: 0.28cm 0 0.24cm;
 }
 
@@ -715,6 +716,14 @@ td .number-input {
   font-weight: 950;
   line-height: 0.86;
   font-variant-numeric: tabular-nums;
+}
+
+.card-number-location {
+  width: 0.34cm;
+  height: 0.34cm;
+  color: #111;
+  flex: 0 0 auto;
+  margin-bottom: 0.02cm;
 }
 
 .card-fields {
