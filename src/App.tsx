@@ -67,6 +67,7 @@ type RemotePersistence = {
     cardsToReplace: ParkingCard[],
   ) => Promise<void>
   deleteCard?: (card: SavedParkingCard) => Promise<void>
+  clearDatabase?: (adminPassword: string) => Promise<number>
 }
 
 type ImportStatus = {
@@ -777,6 +778,7 @@ function ConvexParkingCardApp() {
   const remoteCards = useQuery(api.parkingCards.list)
   const replaceCards = useMutation(api.parkingCards.replaceCards)
   const deleteCard = useMutation(api.parkingCards.deleteCard)
+  const clearDatabase = useMutation(api.parkingCards.clearDatabase)
   const remoteDatabase = useMemo<ParkingDatabase | undefined>(() => {
     if (!remoteCards) {
       return undefined
@@ -832,6 +834,9 @@ function ConvexParkingCardApp() {
         for (const databaseKey of databaseKeysForCard(card)) {
           await deleteCard({ databaseKey })
         }
+      }}
+      clearDatabase={async (adminPassword) => {
+        return await clearDatabase({ adminPassword })
       }}
     />
   )
@@ -891,6 +896,7 @@ function ParkingCardApp(remotePersistence: RemotePersistence = {}) {
   const pages = useMemo(() => chunkCards(cards), [cards])
   const pageCount = Math.max(1, pages.length)
   const currentPreviewPageIndex = Math.min(previewPageIndex, pageCount - 1)
+  const currentEditorCards = pages[currentPreviewPageIndex] ?? []
   const selectedCompanyLogo = companyLogos[selectedCompany]
   const isBackPrint = printSide === 'back'
 
@@ -1095,6 +1101,57 @@ function ParkingCardApp(remotePersistence: RemotePersistence = {}) {
       tone: 'good',
       text: `Removed ${cardToDelete.company} card ${cardToDelete.cardNumber} from database`,
     })
+  }
+
+  const clearDatabase = async () => {
+    if (!remotePersistence.clearDatabase) {
+      setImportStatus({
+        tone: 'warn',
+        text: 'Admin clear is only available when Convex is connected',
+      })
+      return
+    }
+
+    const adminPassword = window.prompt(
+      'Admin password required to clear the whole database',
+    )
+
+    if (!adminPassword) {
+      return
+    }
+
+    const confirmed = window.confirm(
+      'Clear every saved parking card for every company? This cannot be undone.',
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    try {
+      const clearedCount = await remotePersistence.clearDatabase(adminPassword)
+      const nextCards = createBlankCards(
+        selectedCompany,
+        startNumber,
+        cardsPerPage,
+        defaultExpiry,
+      )
+
+      setLocalDatabase(emptyDatabase())
+      setCards(nextCards)
+      setPreviewPageIndex(0)
+      setImportStatus({
+        tone: 'good',
+        text: `Cleared ${clearedCount} saved card${
+          clearedCount === 1 ? '' : 's'
+        } from the database`,
+      })
+    } catch {
+      setImportStatus({
+        tone: 'warn',
+        text: 'Incorrect admin password or admin clear password is not configured',
+      })
+    }
   }
 
   const addCard = () => {
@@ -1432,7 +1489,48 @@ function ParkingCardApp(remotePersistence: RemotePersistence = {}) {
               ))
             )}
           </div>
+
+          <button
+            className="clear-database-button danger"
+            type="button"
+            onClick={clearDatabase}
+          >
+            <Trash2 size={16} aria-hidden="true" />
+            Clear database
+          </button>
         </section>
+
+        <div className="editor-page-nav app-chrome" aria-label="Editor pages">
+          <button
+            className="icon-action"
+            type="button"
+            onClick={() =>
+              setPreviewPageIndex((pageIndex) => Math.max(0, pageIndex - 1))
+            }
+            disabled={currentPreviewPageIndex === 0}
+            title="Previous editor page"
+            aria-label="Previous editor page"
+          >
+            <ChevronLeft size={19} aria-hidden="true" />
+          </button>
+          <span className="page-counter">
+            {currentPreviewPageIndex + 1} / {pageCount}
+          </span>
+          <button
+            className="icon-action"
+            type="button"
+            onClick={() =>
+              setPreviewPageIndex((pageIndex) =>
+                Math.min(pageCount - 1, pageIndex + 1),
+              )
+            }
+            disabled={currentPreviewPageIndex === pageCount - 1}
+            title="Next editor page"
+            aria-label="Next editor page"
+          >
+            <ChevronRight size={19} aria-hidden="true" />
+          </button>
+        </div>
 
         <div className="table-frame">
           <table>
@@ -1449,7 +1547,7 @@ function ParkingCardApp(remotePersistence: RemotePersistence = {}) {
               </tr>
             </thead>
             <tbody>
-              {cards.map((card) => (
+              {currentEditorCards.map((card) => (
                 <tr key={card.id}>
                   <td>
                     <input
@@ -1585,6 +1683,7 @@ function ParkingCardApp(remotePersistence: RemotePersistence = {}) {
                         card={card}
                         company={selectedCompany}
                         logoUrl={selectedCompanyLogo}
+                        onUpdateCard={updateCard}
                         key={card.id}
                       />
                     ) : (
@@ -1655,10 +1754,16 @@ function ParkingCardPreview({
   card,
   company,
   logoUrl,
+  onUpdateCard,
 }: {
   card: ParkingCard
   company: CompanyHeader
   logoUrl: string
+  onUpdateCard: (
+    id: string,
+    field: 'name' | 'carNumber',
+    value: string,
+  ) => void
 }) {
   return (
     <section className={`parking-card ${card.isDuplicate ? 'is-duplicate' : ''}`}>
@@ -1689,12 +1794,28 @@ function ParkingCardPreview({
       <div className="card-fields">
         <div className="field-block">
           <span>Name</span>
-          <strong>{card.name || 'Full Name'}</strong>
+          <input
+            className="card-field-input"
+            aria-label={`Name for card ${card.cardNumber}`}
+            placeholder="Full Name"
+            value={card.name}
+            onChange={(event) =>
+              onUpdateCard(card.id, 'name', event.target.value)
+            }
+          />
         </div>
 
         <div className="field-block highlight">
           <span>Car number</span>
-          <strong>{card.carNumber || 'CAR NUMBER'}</strong>
+          <input
+            className="card-field-input car-number-input"
+            aria-label={`Car number for card ${card.cardNumber}`}
+            placeholder="CAR NUMBER"
+            value={card.carNumber}
+            onChange={(event) =>
+              onUpdateCard(card.id, 'carNumber', event.target.value)
+            }
+          />
         </div>
 
         <div className="field-block">

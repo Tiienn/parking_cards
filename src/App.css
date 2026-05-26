@@ -433,8 +433,29 @@ select {
   border-radius: 7px;
 }
 
+.clear-database-button {
+  width: 100%;
+  margin-top: 12px;
+}
+
+.editor-page-nav {
+  width: fit-content;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0 0;
+  padding: 8px 10px;
+  background: rgba(255, 253, 246, 0.74);
+  border: 1px solid rgba(44, 52, 49, 0.14);
+  border-radius: 8px;
+}
+
+.editor-page-nav .icon-action {
+  background: var(--paper);
+}
+
 .table-frame {
-  margin-top: 18px;
+  margin-top: 12px;
   overflow: auto;
   background: rgba(255, 253, 246, 0.9);
   border: 1px solid var(--line);
@@ -742,12 +763,33 @@ td .number-input {
   border: 0.025cm solid rgba(32, 38, 36, 0.2);
 }
 
-.field-block strong {
+.field-block strong,
+.card-field-input {
   color: #151917;
   font-size: 0.42cm;
   font-weight: 900;
   line-height: 1.06;
   overflow-wrap: anywhere;
+}
+
+.card-field-input {
+  width: 100%;
+  min-height: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.card-field-input::placeholder {
+  color: currentColor;
+  opacity: 1;
+}
+
+.card-field-input:focus-visible {
+  outline: 0.035cm solid rgba(231, 151, 37, 0.54);
+  outline-offset: 0.035cm;
 }
 
 .field-block.highlight {
@@ -757,11 +799,13 @@ td .number-input {
 }
 
 .field-block.highlight span,
-.field-block.highlight strong {
+.field-block.highlight strong,
+.field-block.highlight .card-field-input {
   color: white;
 }
 
-.field-block.highlight strong {
+.field-block.highlight strong,
+.field-block.highlight .card-field-input {
   font-family: var(--font-display);
   font-size: 0.56cm;
   text-transform: uppercase;
@@ -827,8 +871,10 @@ td .number-input {
 
 .preview-stage.is-ink-saver .field-block span,
 .preview-stage.is-ink-saver .field-block strong,
+.preview-stage.is-ink-saver .field-block .card-field-input,
 .preview-stage.is-ink-saver .field-block.highlight span,
 .preview-stage.is-ink-saver .field-block.highlight strong,
+.preview-stage.is-ink-saver .field-block.highlight .card-field-input,
 .preview-stage.is-ink-saver .display-instruction,
 .preview-stage.is-ink-saver .permit-signature span:last-child {
   color: #111;

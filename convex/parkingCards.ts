@@ -1,6 +1,12 @@
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
 
+declare const process: {
+  env: {
+    ADMIN_CLEAR_PASSWORD?: string
+  }
+}
+
 const company = v.union(
   v.literal('Alexander House'),
   v.literal('Desroches'),
@@ -65,5 +71,26 @@ export const deleteCard = mutation({
     for (const match of matches) {
       await ctx.db.delete(match._id)
     }
+  },
+})
+
+export const clearDatabase = mutation({
+  args: {
+    adminPassword: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const configuredPassword = process.env.ADMIN_CLEAR_PASSWORD
+
+    if (!configuredPassword || args.adminPassword !== configuredPassword) {
+      throw new Error('Not authorized to clear the parking card database')
+    }
+
+    const cards = await ctx.db.query('parkingCards').collect()
+
+    for (const card of cards) {
+      await ctx.db.delete(card._id)
+    }
+
+    return cards.length
   },
 })
