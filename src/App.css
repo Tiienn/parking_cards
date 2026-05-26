@@ -443,7 +443,7 @@ select {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin: 16px 0 0;
+  margin: 12px auto 0;
   padding: 8px 10px;
   background: rgba(255, 253, 246, 0.74);
   border: 1px solid rgba(44, 52, 49, 0.14);
@@ -455,7 +455,7 @@ select {
 }
 
 .table-frame {
-  margin-top: 12px;
+  margin-top: 18px;
   overflow: auto;
   background: rgba(255, 253, 246, 0.9);
   border: 1px solid var(--line);

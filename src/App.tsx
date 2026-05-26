@@ -1500,38 +1500,6 @@ function ParkingCardApp(remotePersistence: RemotePersistence = {}) {
           </button>
         </section>
 
-        <div className="editor-page-nav app-chrome" aria-label="Editor pages">
-          <button
-            className="icon-action"
-            type="button"
-            onClick={() =>
-              setPreviewPageIndex((pageIndex) => Math.max(0, pageIndex - 1))
-            }
-            disabled={currentPreviewPageIndex === 0}
-            title="Previous editor page"
-            aria-label="Previous editor page"
-          >
-            <ChevronLeft size={19} aria-hidden="true" />
-          </button>
-          <span className="page-counter">
-            {currentPreviewPageIndex + 1} / {pageCount}
-          </span>
-          <button
-            className="icon-action"
-            type="button"
-            onClick={() =>
-              setPreviewPageIndex((pageIndex) =>
-                Math.min(pageCount - 1, pageIndex + 1),
-              )
-            }
-            disabled={currentPreviewPageIndex === pageCount - 1}
-            title="Next editor page"
-            aria-label="Next editor page"
-          >
-            <ChevronRight size={19} aria-hidden="true" />
-          </button>
-        </div>
-
         <div className="table-frame">
           <table>
             <thead>
@@ -1617,6 +1585,38 @@ function ParkingCardApp(remotePersistence: RemotePersistence = {}) {
               ))}
             </tbody>
           </table>
+        </div>
+
+        <div className="editor-page-nav app-chrome" aria-label="Editor pages">
+          <button
+            className="icon-action"
+            type="button"
+            onClick={() =>
+              setPreviewPageIndex((pageIndex) => Math.max(0, pageIndex - 1))
+            }
+            disabled={currentPreviewPageIndex === 0}
+            title="Previous editor page"
+            aria-label="Previous editor page"
+          >
+            <ChevronLeft size={19} aria-hidden="true" />
+          </button>
+          <span className="page-counter">
+            {currentPreviewPageIndex + 1} / {pageCount}
+          </span>
+          <button
+            className="icon-action"
+            type="button"
+            onClick={() =>
+              setPreviewPageIndex((pageIndex) =>
+                Math.min(pageCount - 1, pageIndex + 1),
+              )
+            }
+            disabled={currentPreviewPageIndex === pageCount - 1}
+            title="Next editor page"
+            aria-label="Next editor page"
+          >
+            <ChevronRight size={19} aria-hidden="true" />
+          </button>
         </div>
       </section>
 
