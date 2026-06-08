@@ -15,6 +15,9 @@ export default defineSchema({
     carNumber: v.string(),
     expiryDate: v.string(),
     isDuplicate: v.boolean(),
+    cardMark: v.optional(
+      v.union(v.literal('none'), v.literal('duplicate'), v.literal('foc')),
+    ),
     pageNumber: v.number(),
     savedAt: v.string(),
   })

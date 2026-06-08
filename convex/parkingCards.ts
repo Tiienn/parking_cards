@@ -14,6 +14,10 @@ const company = v.union(
   v.literal('Lavoquer'),
 )
 
+const cardMark = v.optional(
+  v.union(v.literal('none'), v.literal('duplicate'), v.literal('foc')),
+)
+
 const cardInput = v.object({
   databaseKey: v.string(),
   company,
@@ -22,6 +26,7 @@ const cardInput = v.object({
   carNumber: v.string(),
   expiryDate: v.string(),
   isDuplicate: v.boolean(),
+  cardMark,
   pageNumber: v.number(),
   savedAt: v.string(),
 })

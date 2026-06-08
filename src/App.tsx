@@ -43,15 +43,21 @@ type ParkingCard = {
   carNumber: string
   expiryDate: string
   isDuplicate: boolean
+  cardMark: CardMark
   pageNumber?: number
 }
 
 type CompanyHeader = (typeof companyHeaders)[number]
+type CardMark = 'none' | 'duplicate' | 'foc'
 
 type SavedParkingCard = ParkingCard & {
   company: CompanyHeader
   pageNumber: number
   savedAt: string
+}
+
+type StoredParkingCard = Omit<SavedParkingCard, 'cardMark'> & {
+  cardMark?: CardMark
 }
 
 type ParkingDatabase = {
@@ -113,6 +119,30 @@ function createId() {
 
 function defaultExpiryDate() {
   return '2027-06-30'
+}
+
+function normalizeCardMark(card: { cardMark?: unknown; isDuplicate?: boolean }) {
+  if (card.cardMark === 'duplicate' || card.cardMark === 'foc') {
+    return card.cardMark
+  }
+
+  return card.isDuplicate ? 'duplicate' : 'none'
+}
+
+function isDuplicateCardMark(cardMark: CardMark) {
+  return cardMark === 'duplicate'
+}
+
+function cardMarkStatusText(card: ParkingCard) {
+  if (card.cardMark === 'duplicate') {
+    return `Card ${card.cardNumber} marked as duplicate`
+  }
+
+  if (card.cardMark === 'foc') {
+    return `Card ${card.cardNumber} marked as F.O.C`
+  }
+
+  return `Card ${card.cardNumber} mark removed`
 }
 
 function defaultStartNumberForCompany(company: CompanyHeader) {
@@ -254,7 +284,7 @@ function createBlankCards(
   startNumber: number,
   count: number,
   expiryDate: string,
-) {
+): ParkingCard[] {
   return Array.from({ length: count }, (_, index) => ({
     id: createId(),
     cardNumber: cardNumberFromSequence(company, startNumber, index),
@@ -262,6 +292,7 @@ function createBlankCards(
     carNumber: '',
     expiryDate,
     isDuplicate: false,
+    cardMark: 'none',
   }))
 }
 
@@ -281,7 +312,9 @@ function loadDatabase() {
       return emptyDatabase()
     }
 
-    const parsedDatabase = JSON.parse(storedDatabase) as ParkingDatabase
+    const parsedDatabase = JSON.parse(storedDatabase) as {
+      cards?: StoredParkingCard[]
+    }
     const cards = Array.isArray(parsedDatabase.cards)
       ? dedupeSavedCards(
           parsedDatabase.cards
@@ -307,8 +340,9 @@ function loadDatabase() {
   }
 }
 
-function normalizeSavedCard(card: SavedParkingCard): SavedParkingCard {
+function normalizeSavedCard(card: StoredParkingCard): SavedParkingCard {
   const cardNumber = normalizeCardNumber(card.company, card.cardNumber)
+  const cardMark = normalizeCardMark(card)
 
   return {
     ...card,
@@ -316,7 +350,8 @@ function normalizeSavedCard(card: SavedParkingCard): SavedParkingCard {
     id: card.id || createId(),
     pageNumber:
       card.pageNumber || pageNumberFromCardNumber(card.company, cardNumber),
-    isDuplicate: Boolean(card.isDuplicate),
+    isDuplicate: isDuplicateCardMark(cardMark),
+    cardMark,
   }
 }
 
@@ -435,7 +470,7 @@ function cardsFromSheetRows(
   company: CompanyHeader,
   startNumber: number,
   expiryDate: string,
-) {
+): ParkingCard[] {
   const nonEmptyRows = rows.filter((row) => row.some((cell) => getCellText(cell)))
   const headers = nonEmptyRows[0]?.map(getCellText) ?? []
   const hasHeader = looksLikeHeader(headers)
@@ -444,13 +479,14 @@ function cardsFromSheetRows(
   const carIndex = getColumnIndex(headers, carAliases, 1)
 
   return dataRows
-    .map((row, index) => ({
+    .map<ParkingCard>((row, index) => ({
       id: createId(),
       cardNumber: cardNumberFromSequence(company, startNumber, index),
       name: getCellText(row[nameIndex]),
       carNumber: getCellText(row[carIndex]),
       expiryDate,
       isDuplicate: false,
+      cardMark: 'none',
     }))
     .filter((card) => card.name || card.carNumber)
 }
@@ -579,7 +615,7 @@ function createPageCardsFromRecords(
   records: SavedParkingCard[],
   pageNumber: number,
   expiryDate: string,
-) {
+): ParkingCard[] {
   const pageStartNumber = startNumberFromPage(company, pageNumber)
   const pageStartIndex = (Math.max(1, pageNumber) - 1) * cardsPerPage
   const zoneBRecords = records.filter((record) =>
@@ -597,13 +633,16 @@ function createPageCardsFromRecords(
       : records.find((record) => record.cardNumber === cardNumber)
 
     if (savedCard) {
+      const cardMark = normalizeCardMark(savedCard)
+
       return {
         id: createId(),
         cardNumber: savedCard.cardNumber,
         name: savedCard.name,
         carNumber: savedCard.carNumber,
         expiryDate: savedCard.expiryDate,
-        isDuplicate: Boolean(savedCard.isDuplicate),
+        isDuplicate: isDuplicateCardMark(cardMark),
+        cardMark,
         pageNumber: savedCard.pageNumber,
       }
     }
@@ -615,19 +654,21 @@ function createPageCardsFromRecords(
       carNumber: '',
       expiryDate,
       isDuplicate: false,
+      cardMark: 'none',
       pageNumber,
     }
   })
 }
 
-function cardsFromSavedRecords(records: SavedParkingCard[]) {
+function cardsFromSavedRecords(records: SavedParkingCard[]): ParkingCard[] {
   return records.map((record) => ({
     id: createId(),
     cardNumber: record.cardNumber,
     name: record.name,
     carNumber: record.carNumber,
     expiryDate: record.expiryDate,
-    isDuplicate: Boolean(record.isDuplicate),
+    isDuplicate: isDuplicateCardMark(record.cardMark),
+    cardMark: record.cardMark,
     pageNumber: record.pageNumber,
   }))
 }
@@ -795,6 +836,7 @@ function ConvexParkingCardApp() {
             carNumber: card.carNumber,
             expiryDate: card.expiryDate,
             isDuplicate: card.isDuplicate,
+            cardMark: normalizeCardMark(card),
             pageNumber: card.pageNumber,
             savedAt: card.savedAt,
           }),
@@ -825,6 +867,7 @@ function ConvexParkingCardApp() {
             carNumber: card.carNumber,
             expiryDate: card.expiryDate,
             isDuplicate: card.isDuplicate,
+            cardMark: card.cardMark,
             pageNumber: card.pageNumber,
             savedAt: card.savedAt,
           })),
@@ -989,19 +1032,27 @@ function ParkingCardApp(remotePersistence: RemotePersistence = {}) {
     syncCardsToDatabase(nextCards, [...cards, ...nextCards])
   }
 
-  const toggleDuplicateCard = (id: string) => {
-    const nextCards = cards.map((card) =>
-      card.id === id ? { ...card, isDuplicate: !card.isDuplicate } : card,
-    )
+  const toggleCardMark = (id: string, cardMark: Exclude<CardMark, 'none'>) => {
+    const nextCards: ParkingCard[] = cards.map((card) => {
+      if (card.id !== id) {
+        return card
+      }
+
+      const nextMark: CardMark = card.cardMark === cardMark ? 'none' : cardMark
+
+      return {
+        ...card,
+        cardMark: nextMark,
+        isDuplicate: isDuplicateCardMark(nextMark),
+      }
+    })
     const targetCard = nextCards.find((card) => card.id === id)
 
     setCards(nextCards)
     syncCardsToDatabase(
       nextCards,
       [...cards, ...nextCards],
-      targetCard?.isDuplicate
-        ? `Card ${targetCard.cardNumber} marked as duplicate`
-        : `Card ${targetCard?.cardNumber ?? ''} duplicate mark removed`,
+      targetCard ? cardMarkStatusText(targetCard) : undefined,
     )
   }
 
@@ -1155,7 +1206,7 @@ function ParkingCardApp(remotePersistence: RemotePersistence = {}) {
   }
 
   const addCard = () => {
-    const nextCards = [
+    const nextCards: ParkingCard[] = [
       ...cards,
       {
         id: createId(),
@@ -1168,6 +1219,7 @@ function ParkingCardApp(remotePersistence: RemotePersistence = {}) {
         carNumber: '',
         expiryDate: defaultExpiry,
         isDuplicate: false,
+        cardMark: 'none',
       },
     ]
 
@@ -1508,7 +1560,7 @@ function ParkingCardApp(remotePersistence: RemotePersistence = {}) {
                 <th>Name</th>
                 <th>Car number</th>
                 <th>Expiry</th>
-                <th>Duplicate</th>
+                <th>Mark</th>
                 <th>
                   <span className="sr-only">Actions</span>
                 </th>
@@ -1558,17 +1610,30 @@ function ParkingCardApp(remotePersistence: RemotePersistence = {}) {
                     />
                   </td>
                   <td>
-                    <button
-                      className={`duplicate-button ${
-                        card.isDuplicate ? 'is-active' : ''
-                      }`}
-                      type="button"
-                      aria-pressed={card.isDuplicate}
-                      onClick={() => toggleDuplicateCard(card.id)}
-                    >
-                      <Copy size={15} aria-hidden="true" />
-                      Duplicate
-                    </button>
+                    <div className="card-mark-actions">
+                      <button
+                        className={`card-mark-button is-duplicate-mark ${
+                          card.cardMark === 'duplicate' ? 'is-active' : ''
+                        }`}
+                        type="button"
+                        aria-pressed={card.cardMark === 'duplicate'}
+                        onClick={() => toggleCardMark(card.id, 'duplicate')}
+                      >
+                        <Copy size={15} aria-hidden="true" />
+                        Duplicate
+                      </button>
+                      <button
+                        className={`card-mark-button is-foc-mark ${
+                          card.cardMark === 'foc' ? 'is-active' : ''
+                        }`}
+                        type="button"
+                        aria-pressed={card.cardMark === 'foc'}
+                        onClick={() => toggleCardMark(card.id, 'foc')}
+                      >
+                        <BadgePlus size={15} aria-hidden="true" />
+                        FOC
+                      </button>
+                    </div>
                   </td>
                   <td>
                     <button
@@ -1765,10 +1830,17 @@ function ParkingCardPreview({
     value: string,
   ) => void
 }) {
+  const watermarkText =
+    card.cardMark === 'duplicate'
+      ? 'Duplicate'
+      : card.cardMark === 'foc'
+        ? 'F.O.C'
+        : null
+
   return (
-    <section className={`parking-card ${card.isDuplicate ? 'is-duplicate' : ''}`}>
-      {card.isDuplicate ? (
-        <span className="duplicate-watermark">Duplicate</span>
+    <section className={`parking-card ${watermarkText ? 'is-duplicate' : ''}`}>
+      {watermarkText ? (
+        <span className="duplicate-watermark">{watermarkText}</span>
       ) : null}
 
       <div className="card-header">
