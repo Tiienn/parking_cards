@@ -1830,7 +1830,7 @@ function ParkingCardPreview({
         </span>
         <span className="permit-signature">
           <span className="signature-line" aria-hidden="true" />
-          <span>Permit</span>
+          <span>auth. sig</span>
         </span>
       </div>
     </section>
